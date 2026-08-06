@@ -1,0 +1,48 @@
+# Java compiled files
+*.class
+
+# Eclipse / STS generated files
+bin/
+.settings/
+.classpath
+.project
+
+# Gradle local cache and build output
+.gradle/
+build/
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+application-local.properties
+application-secret.properties
+application-dev.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+
+.idea/
+out/
+.vscode/
+
+# Data initialization & launcher
+run.bat
+src/main/java/ambient_invisible_intelligence/logic/DataInitializer.java
+
+# Claude Code local config
+.claude/
+
+# Local exports / scratch (not part of the project)
+*.zip
+/SmartCollect_Full_System_Flow.svg
+/SmartCollect_Presentation.html
+
+# Architecture study guide (personal learning material, not part of the project)
+/ARCHITECTURE-GUIDE-HE.md
+/ARCHITECTURE-GUIDE-HE.pdf

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartCollect | Admin Console</title>
+    <meta name="description" content="SmartCollect Admin Console — manage users, audit the command log, and control system data.">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css?v=2.9.1">
+    <style>
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: var(--card);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+        }
+        .stat-icon {
+            width: 44px; height: 44px;
+            border-radius: var(--radius);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; flex-shrink: 0;
+        }
+        .stat-icon.teal   { background: var(--primary-light);   color: var(--primary); }
+        .stat-icon.amber  { background: var(--accent-light);    color: #B45309; }
+        .stat-icon.green  { background: var(--status-green-bg); color: #15803D; }
+        .stat-icon.blue   { background: #EFF6FF;                color: #2563EB; }
+        .stat-icon.red    { background: var(--status-red-bg);   color: #B91C1C; }
+        .stat-icon.purple { background: #F5F3FF;                color: #7C3AED; }
+        .stat-value { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
+
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+        .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 1.25rem; }
+        .chart-card .card-title-sm { font-size: 0.8125rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 1rem; }
+        .chart-wrap { position: relative; height: 240px; }
+        @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+        /* Recent activity feed */
+        .activity-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.8125rem; }
+        .activity-row:last-child { border-bottom: none; }
+        .activity-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem; }
+        .activity-main { flex: 1; min-width: 0; }
+        .activity-time { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+
+        .danger-zone {
+            background: var(--status-red-bg);
+            border: 1px solid #FECACA;
+            border-radius: var(--radius-lg);
+            padding: 1.25rem 1.5rem;
+        }
+        .danger-zone h3 {
+            color: #B91C1C; font-size: 0.875rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .danger-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem; }
+
+        .admin-filter-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .filter-tab {
+            padding: 0.4rem 1rem; border-radius: var(--radius-full);
+            font-size: 0.8125rem; font-weight: 600;
+            background: var(--bg-secondary); color: var(--text-secondary);
+            border: none; cursor: pointer; transition: all var(--transition);
+        }
+        .filter-tab:hover { background: var(--border-dark); }
+        .filter-tab.active { background: var(--primary); color: #fff; }
+
+        .info-row { display: flex; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .k { color: var(--text-secondary); }
+        .info-row .v { font-weight: 600; font-family: monospace; }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon"><i class="fa-solid fa-leaf"></i></div>
+            <div>
+                <div class="sidebar-logo-text">SmartCollect</div>
+                <div class="sidebar-logo-sub">Admin Console</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section-label">Console</div>
+            <div class="sidebar-item active" id="nav-overview" onclick="switchView('overview')"><i class="fa-solid fa-gauge-high"></i> Overview</div>
+            <div class="sidebar-item" id="nav-users" onclick="switchView('users')"><i class="fa-solid fa-users"></i> Users</div>
+            <div class="sidebar-item" id="nav-commands" onclick="switchView('commands')"><i class="fa-solid fa-list-check"></i> Audit Log</div>
+            <div class="sidebar-section-label">System</div>
+            <div class="sidebar-item" id="nav-system" onclick="switchView('system')"><i class="fa-solid fa-sliders"></i> System</div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar">A</div>
+                <div>
+                    <div class="sidebar-user-name" id="user-name">Admin</div>
+                    <div class="sidebar-user-role">System Admin</div>
+                </div>
+            </div>
+            <button id="btn-logout" class="btn btn-ghost w-full"
+                style="margin-top:0.75rem;border:1px solid rgba(255,255,255,0.2);color:#fff;">
+                <i class="fa-solid fa-power-off"></i> Logout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Overview -->
+        <div id="view-overview">
+            <header class="topbar">
+                <h1 class="topbar-title">Dashboard Overview</h1>
+                <div class="topbar-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="refreshAdmin()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                </div>
+            </header>
+            <div class="page-content">
+                <div class="kpi-grid">
+                    <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-users"></i></div><div><div class="stat-value" id="kpi-users">—</div><div class="stat-label">Total Users</div></div></div>
+                    <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-user-shield"></i></div><div><div class="stat-value" id="kpi-admins">—</div><div class="stat-label">Admins</div></div></div>
+                    <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-user-gear"></i></div><div><div class="stat-value" id="kpi-operators">—</div><div class="stat-label">Operators</div></div></div>
+                    <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-truck"></i></div><div><div class="stat-value" id="kpi-drivers">—</div><div class="stat-label">Drivers</div></div></div>
+                    <div class="stat-card"><div class="stat-icon purple"><i class="fa-solid fa-list-check"></i></div><div><div class="stat-value" id="kpi-commands">—</div><div class="stat-label">Commands Logged</div></div></div>
+                    <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-recycle"></i></div><div><div class="stat-value" id="kpi-collected">—</div><div class="stat-label">Bins Collected</div></div></div>
+                </div>
+
+                <div class="chart-grid">
+                    <div class="chart-card"><div class="card-title-sm">Users by Role</div><div class="chart-wrap"><canvas id="chart-roles"></canvas></div></div>
+                    <div class="chart-card"><div class="card-title-sm">Commands by Type</div><div class="chart-wrap"><canvas id="chart-cmd-types"></canvas></div></div>
+                </div>
+
+                <div class="chart-card" style="margin-bottom:1.5rem;">
+                    <div class="card-title-sm">Command Activity — last 14 days</div>
+                    <div class="chart-wrap"><canvas id="chart-activity"></canvas></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title-sm" style="font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.5rem;">Recent Activity</div>
+                    <div id="recent-activity"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users -->
+        <div id="view-users" style="display:none;">
+            <header class="topbar">
+                <h1 class="topbar-title">User Management</h1>
+                <div class="topbar-actions">
+                    <button class="btn btn-primary" onclick="openAddUserModal()"><i class="fa-solid fa-user-plus"></i> New User</button>
+                </div>
+            </header>
+            <div class="page-content">
+                <div class="card">
+                    <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">
+                        <div class="admin-filter-tabs" style="margin-bottom:0;">
+                            <button class="filter-tab active" data-filter="ALL">All</button>
+                            <button class="filter-tab" data-filter="ADMIN">Admins</button>
+                            <button class="filter-tab" data-filter="OPERATOR">Operators</button>
+                            <button class="filter-tab" data-filter="END_USER">Drivers</button>
+                        </div>
+                        <input type="text" id="user-search" class="form-input" placeholder="Search name or email…" style="max-width:260px; margin-left:auto; padding:0.4rem 0.75rem; font-size:0.8125rem;">
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Avatar</th><th>Email (ID)</th><th>Display Name</th><th>Role</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr><td colspan="5" style="text-align:center;padding:2rem;"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Log (Commands) -->
+        <div id="view-commands" style="display:none;">
+            <header class="topbar">
+                <h1 class="topbar-title">Audit Log</h1>
+                <div class="topbar-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="loadCommands()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                </div>
+            </header>
+            <div class="page-content">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+                        <div style="font-size:0.875rem; color:var(--text-secondary);" id="command-count-label">Loading commands…</div>
+                        <input type="text" id="command-search" class="form-input" placeholder="Search command, user, or target…" style="max-width:300px; padding:0.4rem 0.75rem; font-size:0.8125rem;">
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Command</th><th>Target Object</th><th>Invoked By</th><th>Timestamp</th><th>Attributes</th></tr>
+                            </thead>
+                            <tbody id="commands-table-body">
+                                <tr><td colspan="6" style="text-align:center;padding:2rem;"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System -->
+        <div id="view-system" style="display:none;">
+            <header class="topbar">
+                <h1 class="topbar-title">System</h1>
+            </header>
+            <div class="page-content">
+                <div class="card" style="margin-bottom:1.5rem;">
+                    <div class="card-title-sm" style="font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.75rem;">System Information</div>
+                    <div class="info-row"><span class="k">Platform</span><span class="v">Ambient Invisible Intelligence</span></div>
+                    <div class="info-row"><span class="k">Signed in as</span><span class="v" id="sys-admin">—</span></div>
+                    <div class="info-row"><span class="k">System ID</span><span class="v" id="sys-id">—</span></div>
+                    <div class="info-row"><span class="k">API Version</span><span class="v" id="sys-api">—</span></div>
+                    <div class="info-row"><span class="k">Users / Commands</span><span class="v" id="sys-counts">—</span></div>
+                </div>
+
+                <div class="card" style="margin-bottom:1.5rem;">
+                    <div class="card-title-sm" style="font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:0.5rem;">Demo Data</div>
+                    <p style="font-size:0.8125rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+                        Populate the system with a full Tel Aviv dataset: 5 drivers, 5 trucks, and 70 bins of every waste type. Objects are created under your account (briefly elevates to OPERATOR, then restores ADMIN).
+                    </p>
+                    <button class="btn btn-primary btn-sm" id="btn-seed" onclick="seedDemoData()"><i class="fa-solid fa-database"></i> Seed Demo Data</button>
+                </div>
+
+                <div class="danger-zone">
+                    <h3><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>
+                    <p style="font-size:0.8125rem; color:#991B1B;">Bulk deletions are permanent and cannot be undone.</p>
+                    <div class="danger-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteAllUsers()"><i class="fa-solid fa-users-slash"></i> Delete All Users</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteAllObjects()"><i class="fa-solid fa-trash"></i> Delete All Objects</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteAllCommands()"><i class="fa-solid fa-list-check"></i> Delete All Commands</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Add/Edit User Modal -->
+<div class="modal-overlay" id="user-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modal-title">Add New User</h2>
+            <button class="modal-close" onclick="closeAddUserModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="user-form">
+            <input type="hidden" id="edit-email">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Email Address</label>
+                <input type="email" id="u-email" class="form-input" required placeholder="name@domain.com">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Display Name</label>
+                <input type="text" id="u-name" class="form-input" required placeholder="e.g. John Smith">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Role</label>
+                <select id="u-role" class="form-input form-select" required>
+                    <option value="END_USER">Driver (END_USER)</option>
+                    <option value="OPERATOR">Operator</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Avatar (single character)</label>
+                <input type="text" id="u-avatar" class="form-input" maxlength="2" placeholder="e.g. J">
+            </div>
+            <div class="form-group" id="u-password-group" style="margin-bottom:1rem;">
+                <label class="form-label">Password</label>
+                <input type="password" id="u-password" class="form-input" placeholder="Min 5 chars, 1 digit, 1 special">
+                <small style="color:var(--text-muted);font-size:0.75rem;">e.g. Pass1! &nbsp;(min 5 chars, 1 number, 1 symbol)</small>
+            </div>
+            <div class="modal-footer" style="margin-top:1.5rem;">
+                <button type="submit" class="btn btn-primary" id="btn-save-user">Save User</button>
+                <button type="button" class="btn btn-ghost" onclick="closeAddUserModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="js/core/config.js?v=2.9.1"></script>
+<script src="js/core/http.js?v=2.9.1"></script>
+<script src="js/core/session.js?v=2.9.1"></script>
+<script src="js/core/ui.js?v=2.9.1"></script>
+<script src="js/services/userService.js?v=2.9.1"></script>
+<script src="js/services/objectService.js?v=2.9.1"></script>
+<script src="js/services/commandService.js?v=2.9.1"></script>
+<script src="js/pages/admin.js?v=2.9.1"></script>
+</body>
+</html>

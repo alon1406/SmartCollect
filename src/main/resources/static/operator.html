@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartCollect | Operator Dashboard</title>
+    <meta name="description" content="SmartCollect Operator Dashboard — monitor bins, trucks and routes in real time.">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="css/style.css?v=2.9.1">
+    <style>
+        /* ── KPI strip ─────────────────────────────── */
+        .kpi-strip {
+            display:flex; gap:1rem; flex-wrap:wrap;
+            padding: 0.75rem 1.5rem;
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+        }
+        .kpi-chip {
+            display:flex; align-items:center; gap:0.5rem;
+            background: var(--bg);
+            border:1px solid var(--border);
+            border-radius: var(--radius-full);
+            padding: 0.35rem 0.875rem;
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+        .kpi-chip i { font-size: 0.875rem; }
+        .kpi-chip.red    { background:var(--status-red-bg);    color:#B91C1C; border-color:#FECACA; }
+        .kpi-chip.yellow { background:var(--status-yellow-bg); color:#92400E; border-color:#FDE68A; }
+        .kpi-chip.green  { background:var(--status-green-bg);  color:#15803D; border-color:#BBF7D0; }
+        .kpi-chip.teal   { background:var(--primary-light);    color:var(--primary); border-color:#A7F3D0; }
+
+        /* ── Main split layout ─────────────────────── */
+        .op-body {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+        #map { width:100%; height:100%; min-height:0; z-index:0; }
+
+        /* ── Right panel ───────────────────────────── */
+        .op-panel {
+            display:flex; flex-direction:column;
+            background: var(--bg);
+            border-left: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .op-panel-tabs {
+            display:flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--card);
+        }
+        .op-tab {
+            flex:1; padding:0.75rem 0.25rem;
+            font-size:0.75rem; font-weight:600;
+            color: var(--text-secondary);
+            border:none; background:transparent; cursor:pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            display:flex; align-items:center; justify-content:center; gap:0.25rem;
+            min-width: 0;
+            white-space: nowrap;
+        }
+        .op-tab:hover { color: var(--primary); }
+        .op-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+        .op-tab-count {
+            background:var(--primary); color:#fff;
+            border-radius:999px; padding:1px 6px;
+            font-size:0.7rem;
+        }
+        .op-tab-count.red { background:var(--status-red); }
+
+        .op-panel-content { flex:1; overflow-y:auto; padding:1rem; }
+
+        /* ── Panel top bar with Add button ─────────── */
+        .panel-header {
+            display:flex; align-items:center; justify-content:space-between;
+            margin-bottom:0.75rem;
+        }
+        .panel-title { font-size:0.8125rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.06em; }
+
+        /* ── List items ────────────────────────────── */
+        .op-item {
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:var(--radius);
+            padding:0.9rem;
+            margin-bottom:0.625rem;
+            cursor:pointer;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .op-item:hover { border-color:var(--border-dark); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+        .op-item-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.35rem; }
+        .op-item-name { font-weight:600; font-size:0.875rem; }
+        .op-item-sub  { font-size:0.75rem; color:var(--text-secondary); }
+
+        /* ── Fill bar ──────────────────────────────── */
+        .fill-bar-wrap { margin-top:0.4rem; }
+        .fill-bar { height:6px; background:var(--bg-secondary); border-radius:9999px; overflow:hidden; }
+        .fill-bar-inner { height:100%; border-radius:9999px; transition: width 0.4s; }
+        .fill-bar-inner.green  { background:var(--status-green); }
+        .fill-bar-inner.yellow { background:var(--status-yellow); }
+        .fill-bar-inner.red    { background:var(--status-red); }
+
+        .op-item-actions { display:flex; gap:0.4rem; margin-top:0.5rem; }
+
+        /* ── Alert item ────────────────────────────── */
+        .alert-item {
+            background:var(--status-red-bg);
+            border:1px solid #FECACA;
+            border-radius:var(--radius);
+            padding:0.75rem;
+            margin-bottom:0.5rem;
+            font-size:0.8125rem;
+        }
+        .alert-item.yellow {
+            background:var(--status-yellow-bg);
+            border-color:#FDE68A;
+        }
+
+        /* ── Route item ────────────────────────────── */
+        .route-progress { margin-top:0.4rem; }
+        .route-progress-text { font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem; }
+
+        /* ── Refreshing indicator ──────────────────── */
+        .refresh-dot {
+            width:8px; height:8px; border-radius:50%;
+            background:var(--status-green);
+            display:inline-block;
+            animation: pulse-red 2s infinite;
+        }
+        .sidebar {
+            position: relative;
+            height: 100%;
+        }
+
+        /* ── Responsive: stack map over panel on tablets/phones ── */
+        @media (max-width: 900px) {
+            .op-body { grid-template-columns: 1fr; grid-template-rows: 45vh auto; overflow-y: auto; }
+            #map { min-height: 45vh; }
+            .op-panel { border-left: none; border-top: 1px solid var(--border); overflow: visible; }
+            .kpi-strip { padding: 0.6rem 1rem; gap: 0.5rem; }
+        }
+
+        /* ── Analytics view ─────────────────────────── */
+        .analytics-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1rem; }
+        .an-kpi { background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:1rem 1.25rem; display:flex; align-items:center; gap:0.875rem; }
+        .an-kpi-value { font-size:1.6rem; font-weight:800; line-height:1; }
+        .an-kpi-label { font-size:0.75rem; color:var(--text-secondary); margin-top:2px; }
+        .analytics-charts { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+        .card-title-sm { font-size:0.8125rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-secondary); margin-bottom:0.75rem; }
+        .an-section-head { display:flex; align-items:center; justify-content:space-between; margin:0 0 0.75rem; font-weight:700; font-size:0.95rem; flex-wrap:wrap; gap:0.5rem; }
+        .an-gran-toggle { display:inline-flex; background:var(--bg-secondary); border-radius:var(--radius-full); padding:3px; gap:2px; }
+        .an-gran-btn { border:none; background:transparent; padding:0.35rem 0.9rem; border-radius:var(--radius-full); font-size:0.8125rem; font-weight:600; color:var(--text-secondary); cursor:pointer; transition:all var(--transition); }
+        .an-gran-btn.active { background:var(--card); color:var(--primary); box-shadow:var(--shadow-sm); }
+        .an-chart-wrap { position:relative; height:240px; }
+        .an-hotspot-row { display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid var(--border); }
+        .an-hotspot-row:last-child { border-bottom:none; }
+        @media (max-width:900px){ .analytics-kpis{grid-template-columns:repeat(2,1fr);} .analytics-charts{grid-template-columns:1fr;} }
+    </style>
+</head>
+<body>
+<div class="app-shell" style="flex-direction:column;height:100vh;overflow:hidden;">
+
+    <!-- Sidebar -->
+    <div style="display:flex;flex:1;overflow:hidden;">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon"><i class="fa-solid fa-leaf"></i></div>
+            <div>
+                <div class="sidebar-logo-text">SmartCollect</div>
+                <div class="sidebar-logo-sub">Operator View</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section-label">Operations</div>
+            <div class="sidebar-item active" id="nav-live-map" onclick="switchMainView('live-map')">
+                <i class="fa-solid fa-map-location-dot"></i> Live Map
+            </div>
+            <div class="sidebar-item" id="nav-past-routes" onclick="switchMainView('past-routes')">
+                <i class="fa-solid fa-clock-rotate-left"></i> Past Routes
+            </div>
+            <div class="sidebar-item" id="nav-analytics" onclick="switchMainView('analytics')">
+                <i class="fa-solid fa-chart-line"></i> Analytics
+            </div>
+            <div class="sidebar-item" id="nav-search" onclick="switchMainView('search')">
+                <i class="fa-solid fa-magnifying-glass"></i> Search
+            </div>
+            <div class="sidebar-section-label">Actions</div>
+            <div class="sidebar-item" onclick="openAddBinModal()"><i class="fa-solid fa-plus"></i> Add Bin</div>
+            <div class="sidebar-item" onclick="openAddTruckModal()"><i class="fa-solid fa-truck-medical"></i> Add Truck</div>
+            <div class="sidebar-item" onclick="openAddRouteModal()"><i class="fa-solid fa-route"></i> Create Route</div>
+            <div class="sidebar-item" onclick="openDispatchModal()"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Dispatch</div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar">O</div>
+                <div>
+                    <div class="sidebar-user-name" id="user-name">Operator</div>
+                    <div class="sidebar-user-role">Operator</div>
+                </div>
+            </div>
+            <button id="btn-logout" class="btn btn-ghost w-full"
+                style="margin-top:0.75rem;border:1px solid rgba(255,255,255,0.2);color:#fff;">
+                <i class="fa-solid fa-power-off"></i> Logout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main area -->
+    <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+
+        <!-- Top bar -->
+        <header class="topbar" style="flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+                <span class="refresh-dot" title="Auto-refreshing every 10s"></span>
+                <h1 class="topbar-title" id="page-title">Live Operations Map</h1>
+            </div>
+            <button id="btn-clear-route" class="btn btn-secondary btn-sm" style="display:none;" onclick="clearRouteAndRefresh()">
+                <i class="fa-solid fa-xmark"></i> Unselect route
+            </button>
+        </header>
+
+        <!-- KPI strip -->
+        <div class="kpi-strip" id="kpi-strip">
+            <div class="kpi-chip yellow" id="kpi-warn-chip"><i class="fa-solid fa-triangle-exclamation"></i> <span id="kpi-warn">—</span> Warning</div>
+            <div class="kpi-chip red" id="kpi-crit-chip"><i class="fa-solid fa-fire"></i> <span id="kpi-crit">—</span> Critical</div>
+        </div>
+
+        <!-- Map + right panel -->
+        <div class="op-body" id="live-map-view" style="flex:1;">
+            <div id="map"></div>
+
+            <!-- Right panel -->
+            <div class="op-panel">
+                <div class="op-panel-tabs">
+                    <button class="op-tab active" onclick="switchTab('bins',this)" id="tab-bins">
+                        <i class="fa-solid fa-trash-can"></i> Bins
+                        <span class="op-tab-count" id="tab-bin-count">0</span>
+                    </button>
+                    <button class="op-tab" onclick="switchTab('trucks',this)" id="tab-trucks">
+                        <i class="fa-solid fa-truck"></i> Trucks
+                        <span class="op-tab-count" id="tab-truck-count">0</span>
+                    </button>
+                    <button class="op-tab" onclick="switchTab('alerts',this)" id="tab-alerts">
+                        <i class="fa-solid fa-bell"></i> Alerts
+                        <span class="op-tab-count red" id="tab-alert-count">0</span>
+                    </button>
+                    <button class="op-tab" onclick="switchTab('routes',this)" id="tab-routes">
+                        <i class="fa-solid fa-route"></i> Routes
+                        <span class="op-tab-count" id="tab-route-count">0</span>
+                    </button>
+                </div>
+                <div class="op-panel-content">
+                    <div id="panel-bins"></div>
+                    <div id="panel-trucks" style="display:none;"></div>
+                    <div id="panel-alerts" style="display:none;"></div>
+                    <div id="panel-routes" style="display:none;"></div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Analytics Page View -->
+        <div id="analytics-view" style="display:none; flex:1; padding:1.5rem; overflow-y:auto; background:var(--bg-secondary);">
+            <div style="max-width:1200px; margin:0 auto;">
+                <div class="analytics-kpis">
+                    <div class="an-kpi"><div><div class="an-kpi-value" id="an-total-collections">0</div><div class="an-kpi-label">Total Collections</div></div></div>
+                    <div class="an-kpi"><div><div class="an-kpi-value" id="an-total-volume">0</div><div class="an-kpi-label">Est. Volume (L)</div></div></div>
+                    <div class="an-kpi"><div><div class="an-kpi-value" id="an-total-issues">0</div><div class="an-kpi-label">Open Issues</div></div></div>
+                    <div class="an-kpi"><div><div class="an-kpi-value" id="an-avg-fill">0%</div><div class="an-kpi-label">Avg Fill Level</div></div></div>
+                </div>
+
+                <div class="an-section-head">
+                    <span>Activity over time</span>
+                    <div class="an-gran-toggle">
+                        <button class="an-gran-btn active" data-gran="day" onclick="setAnalyticsGranularity('day')">By day</button>
+                        <button class="an-gran-btn" data-gran="month" onclick="setAnalyticsGranularity('month')">By month</button>
+                    </div>
+                </div>
+                <div class="analytics-charts">
+                    <div class="card"><div class="card-title-sm" id="an-trend-title">Collections by day</div><div class="an-chart-wrap"><canvas id="chart-collections"></canvas></div></div>
+                    <div class="card"><div class="card-title-sm">Top Drivers</div><div class="an-chart-wrap"><canvas id="chart-drivers"></canvas></div></div>
+                    <div class="card"><div class="card-title-sm">Issues by Type</div><div class="an-chart-wrap"><canvas id="chart-issues"></canvas></div></div>
+                    <div class="card"><div class="card-title-sm">Truck Utilization</div><div class="an-chart-wrap"><canvas id="chart-trucks"></canvas></div></div>
+                </div>
+
+                <div class="card" style="margin-top:1rem;">
+                    <div class="card-title-sm" id="an-breakdown-title">Daily breakdown</div>
+                    <div class="table-wrap" style="box-shadow:none;">
+                        <table>
+                            <thead><tr><th>Period</th><th>Bins Collected</th><th>Est. Volume (L)</th><th>Routes</th><th>Drivers</th></tr></thead>
+                            <tbody id="an-breakdown-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:1rem;">
+                    <div class="card-title-sm">Fullest Bins — needs attention</div>
+                    <div id="an-hotspots"></div>
+                </div>
+                <div style="text-align:center; margin-top:1rem;">
+                    <button class="btn btn-ghost btn-sm" onclick="renderAnalytics()"><i class="fa-solid fa-rotate"></i> Refresh analytics</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Past Routes Page View -->
+        <div id="past-routes-view" style="display:none; flex:1; padding:1.5rem; overflow:hidden; background:var(--bg-secondary); flex-direction:column;">
+            <div class="card" style="max-width:1200px; margin:0 auto; padding:1.5rem; width:100%; display:flex; flex-direction:column; height:100%; box-sizing:border-box; overflow:hidden;">
+                <!-- Filter Bar -->
+                <div style="display:flex; gap:1rem; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap;">
+                    <div class="form-group" style="flex:1; min-width:200px; margin-bottom:0;">
+                        <label class="form-label" style="margin-bottom:0.25rem;">Search</label>
+                        <input type="text" id="past-route-search" class="form-input" placeholder="Search by name, driver, truck..." oninput="filterPastRoutes()">
+                    </div>
+                    <div class="form-group" style="width:180px; margin-bottom:0;">
+                        <label class="form-label" style="margin-bottom:0.25rem;">Status</label>
+                        <select id="past-route-filter-status" class="form-input form-select" onchange="filterPastRoutes()">
+                            <option value="ALL">All Statuses</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="deleted">Deleted</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="width:180px; margin-bottom:0;">
+                        <label class="form-label" style="margin-bottom:0.25rem;">Date</label>
+                        <input type="date" id="past-route-filter-date" class="form-input" onchange="filterPastRoutes()">
+                    </div>
+                    <div style="margin-top:1.25rem;">
+                        <button class="btn btn-ghost" onclick="resetPastRouteFilters()">Reset Filters</button>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="table-wrap" style="flex:1; overflow-y:auto; min-height:0;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Route Name</th>
+                                <th>Scheduled Date</th>
+                                <th>Driver</th>
+                                <th>Truck</th>
+                                <th>Status</th>
+                                <th>Collection Progress</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="past-routes-table-body">
+                            <tr>
+                                <td colspan="7" style="text-align:center; padding:3rem; color:var(--text-muted);">
+                                    Loading past routes...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search View — instant client-side browser over all objects (incl. inactive) -->
+        <div id="search-view" style="display:none; flex:1; padding:1.5rem; overflow-y:auto; background:var(--bg-secondary);">
+            <div class="card" style="max-width:1100px; margin:0 auto; padding:1.5rem; width:100%; box-sizing:border-box;">
+                <div style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:1rem;">
+                    <div class="form-group" style="flex:1; min-width:220px; margin-bottom:0;">
+                        <label class="form-label" style="margin-bottom:.25rem;">Search</label>
+                        <input type="text" id="search-query" class="form-input" placeholder="Name, address, type, status, ID… (not case-sensitive)" oninput="renderSearch()">
+                    </div>
+                    <div class="form-group" style="width:150px; margin-bottom:0;">
+                        <label class="form-label" style="margin-bottom:.25rem;">Type</label>
+                        <select id="search-type" class="form-input form-select" onchange="renderSearch()">
+                            <option value="ALL">All types</option>
+                            <option value="BIN">Bins</option>
+                            <option value="TRUCK">Trucks</option>
+                            <option value="ROUTE">Routes</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="width:150px; margin-bottom:0;">
+                        <label class="form-label" style="margin-bottom:.25rem;">State</label>
+                        <select id="search-active" class="form-input form-select" onchange="renderSearch()">
+                            <option value="ALL">All</option>
+                            <option value="active">Active only</option>
+                            <option value="inactive">Inactive only</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-ghost" onclick="resetSearch()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+                </div>
+                <div style="font-size:.8rem; color:var(--text-secondary); margin-bottom:.5rem;" id="search-meta"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th style="cursor:pointer;" onclick="sortSearch('alias')">Name <i class="fa-solid fa-sort" style="opacity:.4;"></i></th>
+                            <th style="cursor:pointer;" onclick="sortSearch('type')">Type <i class="fa-solid fa-sort" style="opacity:.4;"></i></th>
+                            <th style="cursor:pointer;" onclick="sortSearch('status')">Status <i class="fa-solid fa-sort" style="opacity:.4;"></i></th>
+                            <th style="cursor:pointer;" onclick="sortSearch('fill')">Fill / Info <i class="fa-solid fa-sort" style="opacity:.4;"></i></th>
+                            <th>State</th>
+                            <th>ID</th>
+                        </tr></thead>
+                        <tbody id="search-results-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="bin-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title" id="bin-modal-title">Add Bin</h2>
+            <button class="modal-close" onclick="closeBinModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="bin-form">
+            <input type="hidden" id="bin-edit-id">
+            <input type="hidden" id="bin-lat">
+            <input type="hidden" id="bin-lng">
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Name / Alias</label>
+                <input type="text" id="bin-alias" class="form-input" required placeholder="e.g. Bin #7 - Main St">
+            </div>
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Click on map to set location</label>
+                <div id="bin-picker-map" style="height:200px;border-radius:var(--radius);overflow:hidden;border:2px solid var(--border);cursor:crosshair;"></div>
+                <div id="bin-location-display" style="font-size:.8rem;color:var(--text-secondary);margin-top:.35rem;min-height:1.2em;">
+                    No location selected — click the map above.
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Address (optional label)</label>
+                <input type="text" id="bin-address" class="form-input" placeholder="Street, City (auto-filled or type manually)">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.875rem;">
+                <div class="form-group">
+                    <label class="form-label">Bin Type</label>
+                    <select id="bin-type" class="form-input form-select">
+                        <option value="general">General</option>
+                        <option value="plastic">Plastic</option>
+                        <option value="paper">Paper</option>
+                        <option value="glass">Glass</option>
+                        <option value="organic">Organic</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Capacity (L)</label>
+                    <select id="bin-capacity" class="form-input form-select">
+                        <option value="240">240 L</option>
+                        <option value="660">660 L</option>
+                        <option value="1100" selected>1100 L</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Fill Level (%)</label>
+                <input type="number" id="bin-fill" class="form-input" min="0" max="100" value="0" placeholder="0">
+            </div>
+            <div class="modal-footer" style="margin-top:1rem;">
+                <button type="submit" class="btn btn-primary" id="btn-save-bin">Save Bin</button>
+                <button type="button" class="btn btn-ghost" onclick="closeBinModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Add Truck Modal ────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="truck-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title" id="truck-modal-title">Add Truck</h2>
+            <button class="modal-close" onclick="closeTruckModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="truck-form">
+            <input type="hidden" id="truck-edit-id">
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Truck Name / ID</label>
+                <input type="text" id="truck-alias" class="form-input" required placeholder="e.g. Truck-01">
+            </div>
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">License Plate</label>
+                <input type="text" id="truck-plate" class="form-input" required placeholder="12-345-67">
+            </div>
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Total Capacity (L)</label>
+                <input type="number" id="truck-capacity" class="form-input" value="8000" placeholder="8000">
+            </div>
+            <div class="modal-footer" style="margin-top:1rem;">
+                <button type="submit" class="btn btn-primary" id="btn-save-truck">Save Truck</button>
+                <button type="button" class="btn btn-ghost" onclick="closeTruckModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Create Route Modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="route-modal">
+    <div class="modal" style="max-width:540px;">
+        <div class="modal-header">
+            <h2 class="modal-title">Create Route</h2>
+            <button class="modal-close" onclick="closeRouteModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="route-form">
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Route Name</label>
+                <input type="text" id="route-alias" class="form-input" required placeholder="e.g. Morning Route A">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.875rem;">
+                <div class="form-group">
+                    <label class="form-label">Assign Truck</label>
+                    <select id="route-truck" class="form-input form-select">
+                        <option value="">— None —</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assign Driver</label>
+                    <select id="route-driver" class="form-input form-select">
+                        <option value="">— Unassigned —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Select Bins (click to toggle)</label>
+                <div id="route-bin-picker"
+                     style="max-height:200px;overflow-y:auto;border:2px solid var(--border);border-radius:var(--radius);padding:.5rem;">
+                    <p style="color:var(--text-muted);font-size:.8rem;">Loading bins...</p>
+                </div>
+                <div id="route-load-summary" style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); display:flex; justify-content:space-between;">
+                    <span>Expected Load: <strong id="route-expected-load">0</strong> L</span>
+                    <span>Truck Capacity: <strong id="route-truck-capacity-display">—</strong></span>
+                </div>
+                <div id="route-load-warning" style="display:none; color:#EF4444; font-size:0.75rem; font-weight:600; margin-top:0.25rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Warning: Expected load exceeds the selected truck's capacity!
+                </div>
+            </div>
+            <div class="modal-footer" style="margin-top:1rem;">
+                <button type="submit" class="btn btn-primary" id="btn-save-route">Create Route</button>
+                <button type="button" class="btn btn-ghost" onclick="closeRouteModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Edit Route Modal ──────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="edit-route-modal">
+    <div class="modal" style="max-width:540px;">
+        <div class="modal-header">
+            <h2 class="modal-title">Edit Route</h2>
+            <button class="modal-close" onclick="closeEditRouteModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="edit-route-form">
+            <input type="hidden" id="edit-route-id">
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Route Name</label>
+                <input type="text" id="edit-route-alias" class="form-input" required placeholder="e.g. Morning Route A">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.875rem;">
+                <div class="form-group">
+                    <label class="form-label">Assign Truck</label>
+                    <select id="edit-route-truck" class="form-input form-select">
+                        <option value="">— None —</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assign Driver</label>
+                    <select id="edit-route-driver" class="form-input form-select">
+                        <option value="">— Unassigned —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:.875rem;">
+                <label class="form-label">Status</label>
+                <select id="edit-route-status" class="form-input form-select">
+                    <option value="planned">Planned</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Select Bins (click to toggle)</label>
+                <div id="edit-route-bin-picker"
+                     style="max-height:200px;overflow-y:auto;border:2px solid var(--border);border-radius:var(--radius);padding:.5rem;">
+                    <p style="color:var(--text-muted);font-size:.8rem;">Loading bins...</p>
+                </div>
+                <div id="edit-route-load-summary" style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); display:flex; justify-content:space-between;">
+                    <span>Expected Load: <strong id="edit-route-expected-load">0</strong> L</span>
+                    <span>Truck Capacity: <strong id="edit-route-truck-capacity-display">—</strong></span>
+                </div>
+                <div id="edit-route-load-warning" style="display:none; color:#EF4444; font-size:0.75rem; font-weight:600; margin-top:0.25rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Warning: Expected load exceeds the selected truck's capacity!
+                </div>
+            </div>
+            <div class="modal-footer" style="margin-top:1rem;">
+                <button type="submit" class="btn btn-primary" id="btn-update-route">Update Route</button>
+                <button type="button" class="btn btn-ghost" onclick="closeEditRouteModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Auto-Dispatch Modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="dispatch-modal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <h2 class="modal-title">Plan Today's Routes</h2>
+            <button class="modal-close" onclick="closeDispatchModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <p style="color:var(--text-secondary);font-size:.875rem;margin-bottom:1rem;">
+            Auto-select full bins, pack them into available trucks within capacity, and assign idle drivers — then review before creating.
+        </p>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Collect bins with fill level &ge; <span id="dispatch-threshold-val" style="color:var(--primary);font-weight:700;">50%</span></label>
+            <input type="range" id="dispatch-threshold" min="0" max="100" value="50" step="5"
+                   style="width:100%; accent-color:var(--primary);"
+                   oninput="document.getElementById('dispatch-threshold-val').textContent=this.value+'%'">
+        </div>
+        <button class="btn btn-primary w-full" onclick="generateDispatchPlan()">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Plan
+        </button>
+        <div id="dispatch-result" style="margin-top:1rem;"></div>
+        <div class="modal-footer" id="dispatch-footer" style="margin-top:1.25rem; display:none;">
+            <button class="btn btn-success" id="btn-create-dispatch" onclick="commitDispatchPlan()">
+                <i class="fa-solid fa-check"></i> Create Routes
+            </button>
+            <button class="btn btn-ghost" onclick="closeDispatchModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="js/core/config.js?v=2.9.1"></script>
+<script src="js/core/http.js?v=2.9.1"></script>
+<script src="js/core/session.js?v=2.9.1"></script>
+<script src="js/core/ui.js?v=2.9.1"></script>
+<script src="js/services/userService.js?v=2.9.1"></script>
+<script src="js/services/objectService.js?v=2.9.1"></script>
+<script src="js/services/commandService.js?v=2.9.1"></script>
+<script src="js/pages/operator.js?v=2.9.1"></script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+================================================================================
+SMARTCOLLECT - OBJECT & USER CONTRACTS REFERENCE
+================================================================================
+
+This document outlines the JSON contracts (schemas) for the core boundary objects 
+and entity types used in the SmartCollect system, including the generic 
+ObjectBoundary structures for Bins, Trucks, and Routes.
+
+--------------------------------------------------------------------------------
+1. User Boundary Contract (UserBoundary)
+--------------------------------------------------------------------------------
+Used for retrieving and displaying user information.
+
+{
+  "userId": {
+    "systemID": "smartcollect",
+    "email": "user@example.com"
+  },
+  "role": "OPERATOR",
+  "username": "John Doe",
+  "avatar": "J"
+}
+
+* Note: Allowed roles are ADMIN, OPERATOR, and END_USER (Driver).
+
+--------------------------------------------------------------------------------
+2. User Creation Contract (UserWithPasswordBoundary)
+--------------------------------------------------------------------------------
+Used during registration (POST /ambient-invisible-intelligence/users).
+
+{
+  "email": "user@example.com",
+  "password": "securepassword123",
+  "role": "OPERATOR",
+  "username": "John Doe",
+  "avatar": "J"
+}
+
+* Note: Password must be min 5 characters, containing at least 1 digit and 1 special character.
+
+--------------------------------------------------------------------------------
+3. Generic Object Boundary Contract (ObjectBoundary)
+--------------------------------------------------------------------------------
+All entities (Bins, Trucks, Routes) are stored as instances of ObjectBoundary.
+
+{
+  "objectId": {
+    "systemID": "smartcollect",
+    "id": "uuid-string-here"
+  },
+  "type": "BIN | TRUCK | ROUTE",
+  "alias": "My Friendly Alias",
+  "active": true,
+  "createdTimestamp": "2026-06-08T11:03:53.000Z",
+  "location": {
+    "lat": 32.114,
+    "lng": 34.796
+  },
+  "createdBy": {
+    "userId": {
+      "systemID": "smartcollect",
+      "email": "creator@example.com"
+    }
+  },
+  "moreAttributes": {}
+}
+
+--------------------------------------------------------------------------------
+4. Object Subtype - BIN (inside "moreAttributes")
+--------------------------------------------------------------------------------
+{
+  "fillLevel": 0,
+  "binType": "general",
+  "capacity": 1100,
+  "address": "123 Main St",
+  "lastCollected": null,
+  "status": "active",
+  "errorStatus": null
+}
+
+* Note: binType is one of "general", "plastic", "paper", "glass", "organic".
+* Note: errorStatus can be null, "damaged", "blocked", "missed", etc.
+
+--------------------------------------------------------------------------------
+5. Object Subtype - TRUCK (inside "moreAttributes")
+--------------------------------------------------------------------------------
+{
+  "plateNumber": "12-345-67",
+  "driverEmail": null,
+  "driverName": null,
+  "status": "available",
+  "currentRouteId": null,
+  "collectedCount": 0,
+  "totalCapacity": 8000,
+  "currentLoad": 0
+}
+
+--------------------------------------------------------------------------------
+6. Object Subtype - ROUTE (inside "moreAttributes")
+--------------------------------------------------------------------------------
+{
+  "assignedTruckId": "truck-uuid",
+  "assignedDriverEmail": "driver@example.com",
+  "assignedDriverName": "Driver Name",
+  "status": "planned",
+  "binIds": [
+    "bin-uuid-1",
+    "bin-uuid-2"
+  ],
+  "completedBinIds": [],
+  "scheduledDate": "2026-06-08",
+  "startedAt": null,
+  "completedAt": null,
+  "approvedAt": null
+}
+
+* Note: status can be "planned", "in_progress", "returning", "completed", "cancelled".
+
+--------------------------------------------------------------------------------
+7. Object Child Binding Contract (ObjectChildIdBoundary)
+--------------------------------------------------------------------------------
+Used when binding a child object to a parent (PUT /.../children).
+
+{
+  "childId": {
+    "systemID": "smartcollect",
+    "objectId": "uuid-string-here"
+  }
+}
+
+--------------------------------------------------------------------------------
+8. Mini-App Command Contract (CommandBoundary)
+--------------------------------------------------------------------------------
+Used to invoke actions on the system (POST /ambient-invisible-intelligence/commands).
+
+{
+  "commandId": {
+    "systemID": "smartcollect",
+    "commandId": "command-uuid"
+  },
+  "command": "commandName",
+  "targetObject": {
+    "objectId": {
+      "systemID": "smartcollect",
+      "objectId": "target-object-uuid"
+    }
+  },
+  "creationTimestamp": "2026-06-08T11:03:53.000Z",
+  "invokedBy": {
+    "userId": {
+      "systemID": "smartcollect",
+      "email": "user@example.com"
+    }
+  },
+  "commandAttributes": {}
+}

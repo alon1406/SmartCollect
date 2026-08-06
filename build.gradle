@@ -1,0 +1,73 @@
+
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'il.ac.afeka.integrative'
+version = '1.4' // updated version to meet Sprint 4 specifications
+description = 'Smart Collect project for Spring Boot'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// provide REST API over HTTP capabilities
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	
+	// simulates database using Maps
+	// implementation 'org.springframework.data:spring-data-keyvalue'
+	
+	// utilities for testing HTTP REST API
+	implementation 'org.springframework.boot:spring-boot-starter-restclient'
+		
+	// Source: https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
+	// implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+	
+	// integrate project with MongoDB database
+	// implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+	
+	// support for Hibernate integration using JPA interfaces
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// support for H2 Console - used for validating Relational Database content
+	implementation 'org.springframework.boot:spring-boot-h2console'
+
+		
+	// integrate with Docker Compose for managing Databases Container
+	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+	
+	// helper utilities for project development
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	
+	// H2 instance used for testing
+	runtimeOnly 'com.h2database:h2'
+	
+	// Postgresql Driver
+	runtimeOnly 'org.postgresql:postgresql'	
+	
+	// utilities for integration tests
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-restclient-test'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	
+	//testImplementation 'org.springframework.boot:spring-boot-starter-data-mongodb-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	//testImplementation 'org.testcontainers:testcontainers-mongodb'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

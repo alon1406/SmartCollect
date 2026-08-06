@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartCollect | Driver Route</title>
+    <meta name="description" content="SmartCollect Driver Dashboard — view your route and confirm bin collections.">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="css/style.css?v=2.9.1">
+    <style>
+        .driver-body {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            flex: 1;
+            overflow: hidden;
+        }
+        #driver-map { width:100%; height:100%; min-height:500px; z-index:0; }
+
+        .route-panel {
+            display: flex; flex-direction: column;
+            background: var(--bg);
+            border-left: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .route-header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.25rem;
+        }
+        .route-name { font-size: 1rem; font-weight: 700; margin-bottom: .25rem; }
+        .route-meta { font-size: .8rem; color: var(--text-secondary); }
+
+        /* Progress bar */
+        .progress-section { padding: .75rem 1.25rem; border-bottom: 1px solid var(--border); background:var(--card); }
+        .progress-label { display:flex; justify-content:space-between; font-size:.8125rem; margin-bottom:.35rem; }
+        .progress-label .prog-pct { font-weight:700; color:var(--primary); }
+        .prog-bar { height:10px; background:var(--bg-secondary); border-radius:9999px; overflow:hidden; }
+        .prog-bar-inner { height:100%; background:var(--primary); border-radius:9999px; transition:width .5s ease; }
+
+        /* Route info fills the panel as a flex column so the bin list scrolls and
+           the footer (Return to Depot) stays reachable when there are many bins. */
+        #route-info { flex:1; min-height:0; display:flex; flex-direction:column; }
+
+        /* Bin list */
+        .bin-list { flex:1; min-height:0; overflow-y:auto; padding:.75rem; }
+        .bin-card {
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            padding: .875rem;
+            margin-bottom: .625rem;
+            transition: all .2s;
+        }
+        .bin-card.collected {
+            opacity: .55;
+            border-color: var(--status-green);
+            background: var(--status-green-bg);
+        }
+        .bin-card.error {
+            border-color: var(--status-red);
+            background: var(--status-red-bg);
+        }
+        .bin-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.35rem; }
+        .bin-card-name { font-weight:700; font-size:.9rem; }
+        .bin-card-addr { font-size:.75rem; color:var(--text-secondary); margin-bottom:.5rem; }
+        .bin-card-actions { display:flex; gap:.35rem; margin-top:.625rem; align-items:center; flex-wrap:wrap; }
+        /* Tighter buttons so all four (Collected · Report · locate · navigate) fit one row even with the scrollbar */
+        .bin-card-actions .btn-sm { padding:.35rem .5rem; }
+
+        /* Locked state (sequential route lock) */
+        .bin-card.locked { opacity:.6; border-style:dashed; }
+        .bin-card.locked .bin-card-name { color:var(--text-secondary); }
+        .bin-lock-hint { font-size:.7rem; color:var(--text-muted); margin-top:.4rem; display:flex; align-items:center; gap:.35rem; }
+
+        /* Completed state overlay */
+        .collected-label {
+            display: flex; align-items:center; gap:.4rem;
+            color: #15803D; font-weight:700; font-size:.875rem;
+        }
+
+        /* No route placeholder */
+        .no-route {
+            flex:1; display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            padding:2rem; text-align:center; color:var(--text-muted);
+        }
+        .no-route i { font-size:3rem; opacity:.3; margin-bottom:1rem; }
+
+        /* Footer action bar */
+        .route-footer {
+            padding:.75rem 1.25rem;
+            border-top:1px solid var(--border);
+            background:var(--card);
+        }
+
+        /* Error report modal content */
+        .error-option {
+            display:flex; align-items:center; gap:.75rem;
+            padding:.75rem; border:2px solid var(--border);
+            border-radius:var(--radius); cursor:pointer; margin-bottom:.5rem;
+            transition:all .15s;
+        }
+        .error-option:hover, .error-option.selected { border-color:var(--primary); background:var(--primary-light); }
+        .error-option i { font-size:1.25rem; color:var(--primary); width:24px; text-align:center; }
+
+        /* Keep the sidebar in-flow on desktop so the topbar/map don't slide under it.
+           On mobile the shared media query turns it back into a fixed drawer. */
+        .sidebar { position: relative; height: 100%; }
+
+        /* ── Responsive: stack map over route panel on tablets/phones ── */
+        @media (max-width: 900px) {
+            .driver-body { grid-template-columns: 1fr; grid-template-rows: 50vh auto; overflow-y: auto; }
+            #driver-map { height: 50vh; min-height: 320px; }
+            .route-panel { border-left: none; border-top: 1px solid var(--border); overflow: visible; }
+            #route-info { display: block; }   /* on mobile the whole page scrolls, not the bin list */
+            .bin-list { overflow: visible; }
+        }
+    </style>
+</head>
+<body>
+<div class="app-shell" style="flex-direction:column;height:100vh;overflow:hidden;">
+    <div style="display:flex;flex:1;overflow:hidden;">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon"><i class="fa-solid fa-leaf"></i></div>
+            <div>
+                <div class="sidebar-logo-text">SmartCollect</div>
+                <div class="sidebar-logo-sub">Driver App</div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section-label">My Route</div>
+            <div class="sidebar-item active"><i class="fa-solid fa-route"></i> Current Route</div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar">D</div>
+                <div>
+                    <div class="sidebar-user-name" id="user-name">Driver</div>
+                    <div class="sidebar-user-role">Driver</div>
+                </div>
+            </div>
+            <button id="btn-logout" class="btn btn-ghost w-full"
+                style="margin-top:.75rem;border:1px solid rgba(255,255,255,0.2);color:#fff;">
+                <i class="fa-solid fa-power-off"></i> Logout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main area -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <header class="topbar" style="flex-shrink:0;">
+            <h1 class="topbar-title" id="topbar-route-name">My Route</h1>
+            <div class="topbar-actions">
+                <button class="btn btn-ghost btn-sm" onclick="loadRoute()">
+                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+            </div>
+        </header>
+
+        <div class="driver-body">
+            <!-- Map -->
+            <div id="driver-map"></div>
+
+            <!-- Route panel -->
+            <div class="route-panel" id="route-panel">
+                <div class="no-route" id="no-route">
+                    <i class="fa-solid fa-route"></i>
+                    <p>Loading your route...</p>
+                </div>
+
+                <!-- Route info (shown when route is found) -->
+                <div id="route-info" style="display:none;">
+                    <div class="route-header">
+                        <div class="route-name" id="route-display-name">—</div>
+                        <div class="route-meta" id="route-display-meta">—</div>
+                    </div>
+                    <div class="progress-section">
+                        <div class="progress-label">
+                            <span id="prog-label">0 / 0 bins collected</span>
+                            <span class="prog-pct" id="prog-pct">0%</span>
+                        </div>
+                        <div class="prog-bar"><div class="prog-bar-inner" id="prog-bar" style="width:0%"></div></div>
+                    </div>
+                    <div class="bin-list" id="bin-list"></div>
+                    <div class="route-footer" id="route-footer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</div>
+
+<!-- Error Report Modal -->
+<div class="modal-overlay" id="error-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Report Issue</h2>
+            <button class="modal-close" onclick="closeErrorModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <input type="hidden" id="error-bin-id">
+        <p style="color:var(--text-secondary);font-size:.875rem;margin-bottom:1rem;">Select the type of issue:</p>
+        <div id="error-options">
+            <div class="error-option" onclick="selectError('damaged',this)">
+                <i class="fa-solid fa-wrench"></i>
+                <div><b>Damaged</b><div style="font-size:.75rem;color:var(--text-secondary);">Bin is physically broken or damaged</div></div>
+            </div>
+            <div class="error-option" onclick="selectError('blocked',this)">
+                <i class="fa-solid fa-ban"></i>
+                <div><b>Blocked</b><div style="font-size:.75rem;color:var(--text-secondary);">Cannot reach the bin (parked car, obstruction, etc.)</div></div>
+            </div>
+            <div class="error-option" onclick="selectError('missed',this)">
+                <i class="fa-solid fa-calendar-xmark"></i>
+                <div><b>Missed</b><div style="font-size:.75rem;color:var(--text-secondary);">Bin could not be collected this round</div></div>
+            </div>
+        </div>
+        <div class="modal-footer" style="margin-top:1.25rem;">
+            <button class="btn btn-danger" id="btn-report-error" onclick="submitErrorReport()" disabled>
+                <i class="fa-solid fa-triangle-exclamation"></i> Report Issue
+            </button>
+            <button class="btn btn-ghost" onclick="closeErrorModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/core/config.js?v=2.9.1"></script>
+<script src="js/core/http.js?v=2.9.1"></script>
+<script src="js/core/session.js?v=2.9.1"></script>
+<script src="js/core/ui.js?v=2.9.1"></script>
+<script src="js/services/userService.js?v=2.9.1"></script>
+<script src="js/services/objectService.js?v=2.9.1"></script>
+<script src="js/services/commandService.js?v=2.9.1"></script>
+<script src="js/pages/driver.js?v=2.9.1"></script>
+</body>
+</html>

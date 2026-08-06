@@ -1,0 +1,102 @@
+{
+  "UserBoundary": {
+    "userId": {
+      "systemID": "smartcollect",
+      "email": "user@example.com"
+    },
+    "role": "OPERATOR",
+    "username": "John Doe",
+    "avatar": "avatar_identifier"
+  },
+  "UserWithPasswordBoundary": {
+    "email": "user@example.com",
+    "password": "securepassword123",
+    "role": "OPERATOR",
+    "username": "John Doe",
+    "avatar": "avatar_identifier"
+  },
+  "ObjectBoundary": {
+    "objectId": {
+      "systemID": "smartcollect",
+      "id": "uuid-string-here"
+    },
+    "type": "BIN | TRUCK | ROUTE",
+    "alias": "My Friendly Alias",
+    "active": true,
+    "createdTimestamp": "2026-06-08T11:03:53.000Z",
+    "location": {
+      "lat": 32.114,
+      "lng": 34.796
+    },
+    "createdBy": {
+      "userId": {
+        "systemID": "smartcollect",
+        "email": "creator@example.com"
+      }
+    },
+    "moreAttributes": {}
+  },
+  "ObjectSubtypes": {
+    "BIN": {
+      "fillLevel": 0,
+      "binType": "general",
+      "capacity": 1100,
+      "address": "123 Main St",
+      "lastCollected": null,
+      "status": "active",
+      "errorStatus": null
+    },
+    "TRUCK": {
+      "plateNumber": "12-345-67",
+      "driverEmail": null,
+      "driverName": null,
+      "status": "available",
+      "currentRouteId": null,
+      "collectedCount": 0,
+      "totalCapacity": 8000,
+      "currentLoad": 0
+    },
+    "ROUTE": {
+      "assignedTruckId": "truck-uuid",
+      "assignedDriverEmail": "driver@example.com",
+      "assignedDriverName": "Driver Name",
+      "status": "planned",
+      "binIds": [
+        "bin-uuid-1",
+        "bin-uuid-2"
+      ],
+      "completedBinIds": [],
+      "scheduledDate": "2026-06-08",
+      "startedAt": null,
+      "completedAt": null,
+      "approvedAt": null
+    }
+  },
+  "ObjectChildIdBoundary": {
+    "childId": {
+      "systemID": "smartcollect",
+      "objectId": "uuid-string-here"
+    }
+  },
+  "CommandBoundary": {
+    "commandId": {
+      "systemID": "smartcollect",
+      "commandId": "command-uuid"
+    },
+    "command": "commandName",
+    "targetObject": {
+      "objectId": {
+        "systemID": "smartcollect",
+        "objectId": "target-object-uuid"
+      }
+    },
+    "creationTimestamp": "2026-06-08T11:03:53.000Z",
+    "invokedBy": {
+      "userId": {
+        "systemID": "smartcollect",
+        "email": "user@example.com"
+      }
+    },
+    "commandAttributes": {}
+  }
+}

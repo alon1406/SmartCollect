@@ -272,8 +272,13 @@ The server starts on **port 8084**.
 | Swagger UI | `http://localhost:8084/swagger-ui.html` |
 | H2 console (debug) | `http://localhost:8084/h2-console` |
 
-On first run the `initDemoes` profile seeds a full demo dataset — users, bins, trucks and routes —
-so the UI is immediately usable. Sign in as the operator with `op1@sc.com` / `Oper1!7`.
+On first run the `initDemoes` profile seeds a demo dataset — **7 users, 5 trucks and 70 bins**
+spread over real Tel Aviv streets. Sign in as the operator with `op1@sc.com` / `Oper1!7`.
+
+> **Routes are not seeded.** Collection routes are built by the operator: open the operator
+> dashboard, pick a set of bins, assign a truck and a driver, and create the route — the bins are
+> then bound to it as children. Until a route exists the driver dashboard has nothing to show, so
+> create one before signing in as a driver (`dan@sc.com` / `Driver1!`) to see the collection flow.
 
 > For a full production deployment walkthrough (DDL-auto modes, first-run vs. subsequent-run config, seeded demo credentials), see [`INSTRUCTIONS.MD`](INSTRUCTIONS.MD).
 
@@ -511,6 +516,7 @@ Honest notes on what a production version would change:
 | Password storage | Plain text | BCrypt hash + salt |
 | Authentication | Credentials repeated on every request as query params | JWT or an `HttpOnly` session cookie |
 | Authorization | Manual `require...` call per method | Spring Security with `@PreAuthorize` |
+| Role escalation | The operator dashboard promotes itself to `ADMIN` via `PUT /users`, calls an admin-only endpoint, then demotes itself — because `/admin/users` is the only way to list drivers | A dedicated endpoint that returns drivers to an operator, so no client ever needs a higher role |
 | Command IDs | `AtomicLong`, resets on restart | UUID or a database sequence |
 | Location search | Bounding box in degrees | PostGIS or a Haversine query |
 

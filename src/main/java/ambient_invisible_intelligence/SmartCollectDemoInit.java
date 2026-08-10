@@ -1,6 +1,8 @@
 package ambient_invisible_intelligence;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.boot.CommandLineRunner;
@@ -84,10 +86,11 @@ public class SmartCollectDemoInit implements CommandLineRunner {
 
 		// 5 trucks — mirrors the truck loop in admin.js seedDemoData()
 		// plate formula: `${11+i}-${100+i*7}-${20+i}`, alias: Truck A..E
+		List<ObjectBoundary> trucks = new ArrayList<>();
 		for (int i = 0; i < 5; i++) {
 			String plate = (11 + i) + "-" + (100 + i * 7) + "-" + (20 + i);
 			String alias = "Truck " + (char) ('A' + i);
-			objectsService.createObject(makeTruck(alias, plate), OPERATOR_PASSWORD);
+			trucks.add(objectsService.createObject(makeTruck(alias, plate), OPERATOR_PASSWORD));
 		}
 
 		// 70 bins — mirrors the STREETS / LOCATIONS loop in admin.js seedDemoData()
@@ -107,6 +110,7 @@ public class SmartCollectDemoInit implements CommandLineRunner {
 			{ 32.0805, 34.7695 }, { 32.0820, 34.7690 }, { 32.0895, 34.7830 }, { 32.0850, 34.7900 }
 		};
 
+		List<String> binIds = new ArrayList<>();
 		for (int i = 0; i < 70; i++) {
 			int si  = i % 20;
 			int num = 1 + ((i * 7) % 180);                         // same formula as seed
@@ -118,7 +122,59 @@ public class SmartCollectDemoInit implements CommandLineRunner {
 			double lng     = streetCoords[si][1];
 			int fillLevel  = (i * 13 + 17) % 96;                   // deterministic 0-95
 
-			objectsService.createObject(makeBin(alias, lat, lng, type, 1100, address, fillLevel), OPERATOR_PASSWORD);
+			ObjectBoundary bin = objectsService.createObject(
+					makeBin(alias, lat, lng, type, 1100, address, fillLevel), OPERATOR_PASSWORD);
+			binIds.add(uuidOf(bin));
+		}
+
+		// ── 3. ROUTES ────────────────────────────────────────────────────────────
+		// Routes are normally built by the operator in the UI. The seeder builds a
+		// few up front so a fresh database can demonstrate the driver flow without
+		// anyone having to assemble a route by hand first.
+		//
+		// Each route is left in "planned" state with nothing collected yet, so a
+		// driver can run the whole collection sequence from the beginning.
+		String[][] routePlan = {
+			// alias                 driver email    driver name     truck  firstBin  count
+			{ "Route A - Center",    "dan@sc.com",   "Dan Cohen",    "0",   "0",      "8" },
+			{ "Route B - North",     "noa@sc.com",   "Noa Levi",     "1",   "8",      "7" },
+			{ "Route C - South",     "omer@sc.com",  "Omer Bar",     "2",   "15",     "6" }
+		};
+
+		for (String[] plan : routePlan) {
+			int truckIndex = Integer.parseInt(plan[3]);
+			int firstBin   = Integer.parseInt(plan[4]);
+			int binCount   = Integer.parseInt(plan[5]);
+
+			List<String> routeBinIds = new ArrayList<>(binIds.subList(firstBin, firstBin + binCount));
+			ObjectBoundary truck = trucks.get(truckIndex);
+			String truckId = uuidOf(truck);
+
+			ObjectBoundary route = objectsService.createObject(
+					makeRoute(plan[0], routeBinIds, truckId, plan[1], plan[2]), OPERATOR_PASSWORD);
+			String routeId = uuidOf(route);
+
+			// Bind every bin as a child of the route. This is what makes the
+			// BinCollected command work: applyBinCollected() locates the route
+			// through bin.getParents(), not through the binIds list.
+			for (String binId : routeBinIds) {
+				objectsService.bindObjects(SYSTEM_ID, routeId, SYSTEM_ID, binId,
+						SYSTEM_ID, OPERATOR_EMAIL, OPERATOR_PASSWORD);
+			}
+
+			// Mirror what handleSaveRoute() in operator.js does after creating a
+			// route: the assigned truck moves out of the available pool.
+			Map<String, Object> truckDetails = new HashMap<>(truck.getObjectDetails());
+			truckDetails.put("status", "on_route");
+			truckDetails.put("driverEmail", plan[1]);
+			truckDetails.put("driverName", plan[2]);
+			truckDetails.put("currentRouteId", routeId);
+
+			ObjectBoundary truckUpdate = new ObjectBoundary();
+			truckUpdate.setStatus("on_route");
+			truckUpdate.setObjectDetails(truckDetails);
+			objectsService.updateObject(SYSTEM_ID, truckId, truckUpdate,
+					SYSTEM_ID, OPERATOR_EMAIL, OPERATOR_PASSWORD);
 		}
 	}
 
@@ -175,6 +231,35 @@ public class SmartCollectDemoInit implements CommandLineRunner {
 		details.put("errorStatus", null);
 		obj.setObjectDetails(details);
 		return obj;
+	}
+
+	/** Mirrors api.buildRoute() in objectService.js so seeded routes look exactly
+	 *  like routes the operator creates through the UI. */
+	private ObjectBoundary makeRoute(String alias, List<String> binIds, String truckId,
+			String driverEmail, String driverName) {
+		ObjectBoundary obj = new ObjectBoundary();
+		obj.setType("ROUTE");
+		obj.setAlias(alias);
+		obj.setStatus("planned");
+		obj.setActive(true);
+		obj.setLocation(location(32.114, 34.796));
+		obj.setCreatedBy(createdBy(OPERATOR_EMAIL));
+		Map<String, Object> details = new HashMap<>();
+		details.put("assignedTruckId", truckId);
+		details.put("assignedDriverEmail", driverEmail);
+		details.put("assignedDriverName", driverName);
+		details.put("status", "planned");
+		details.put("binIds", new ArrayList<>(binIds));
+		details.put("completedBinIds", new ArrayList<>());
+		details.put("startedAt", null);
+		details.put("completedAt", null);
+		obj.setObjectDetails(details);
+		return obj;
+	}
+
+	/** Extracts the generated UUID from a boundary returned by createObject(). */
+	private String uuidOf(ObjectBoundary boundary) {
+		return boundary.getObjectId().getObjectId();
 	}
 
 	private LocationBoundary location(double lat, double lng) {

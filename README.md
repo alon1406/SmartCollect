@@ -48,6 +48,7 @@ The three roles map onto the real workflow:
 - [Key Design Decisions](#key-design-decisions)
 - [Test Structure](#test-structure)
 - [PostgreSQL Configuration](#postgresql-configuration)
+- [Deployment](#deployment)
 - [Project Info](#project-info)
 
 ---
@@ -565,6 +566,55 @@ Password: set via POSTGRES_PASSWORD env var (defaults to "secret")
 Managed via `compose.yaml` and `spring-boot-docker-compose` - Spring Boot auto-connects on startup, no manual `spring.datasource.*` config needed. Spring reads `compose.yaml`, starts the container, discovers the randomly assigned port and builds the `DataSource` itself.
 
 > Originally built on MongoDB; migrated to PostgreSQL mid-project as part of learning relational modeling with JPA/Hibernate.
+
+---
+
+## Deployment
+
+The repository ships everything needed to run the whole stack on a single Linux
+host. `compose.yaml` stays as the development file (PostgreSQL only, with the
+application running on the host); `docker-compose.prod.yml` runs all three
+services in containers.
+
+| File | Role |
+|---|---|
+| `Dockerfile` | Multi-stage build — `eclipse-temurin:25-jdk` builds the jar, `25-jre` runs it as a non-root user |
+| `docker-compose.prod.yml` | PostgreSQL + application + Caddy |
+| `Caddyfile` | TLS termination and reverse proxy |
+| `src/main/resources/application-prod.properties` | Production overrides, activated by `SPRING_PROFILES_ACTIVE=prod` |
+
+### Deploy
+
+```bash
+git clone https://github.com/alon1406/SmartCollect.git && cd SmartCollect
+cp .env.example .env          # set DB_PASSWORD and DOMAIN
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Caddy requests a Let's Encrypt certificate on first start, so the domain's `A`
+record must already point at the host. Only ports 80 and 443 need to be open —
+PostgreSQL and the application are reachable only on the internal network.
+
+### Notes on running this publicly
+
+**The demo resets itself.** The production profile keeps `ddl-auto=create`, so
+every restart drops the schema and `initDemoes` re-seeds the same fixed dataset.
+Anything a visitor creates or deletes is gone on the next start. Because the
+container otherwise runs for weeks, a nightly restart is what actually triggers
+the reset:
+
+```
+0 4 * * *  cd /opt/smartcollect && docker compose -f docker-compose.prod.yml restart app
+```
+
+**Two things are locked down for a public deployment**, both listed under
+[Known limitations](#known-limitations):
+
+- `POST /users` silently downgrades a requested `ADMIN` role to `END_USER`, so
+  nobody can self-register into the admin endpoints. Seeded admin accounts are
+  unaffected — the seeder calls the service layer directly.
+- Caddy returns `403` for `DELETE /ambient-invisible-intelligence/admin/*`, so
+  the bulk-delete routes cannot be reached from outside.
 
 ---
 

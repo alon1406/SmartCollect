@@ -39,18 +39,16 @@ dependencies {
 	// support for Hibernate integration using JPA interfaces
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 
-	// support for H2 Console - used for validating Relational Database content
-	implementation 'org.springframework.boot:spring-boot-h2console'
+	// NOTE: the H2 console and the H2 driver were removed. Nothing in this project
+	// uses H2 - tests run against a real PostgreSQL container via TestContainers -
+	// and shipping the console in the production jar exposes /h2-console, which
+	// accepts an arbitrary JDBC URL and is a known remote-code-execution vector.
 
-		
 	// integrate with Docker Compose for managing Databases Container
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 	
 	// helper utilities for project development
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
-	
-	// H2 instance used for testing
-	runtimeOnly 'com.h2database:h2'
 	
 	// Postgresql Driver
 	runtimeOnly 'org.postgresql:postgresql'	

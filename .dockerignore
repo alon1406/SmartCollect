@@ -1,0 +1,33 @@
+# Build output - the image builds these itself
+build/
+.gradle/
+bin/
+out/
+
+# Version control and IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+.settings/
+.classpath
+.project
+
+# Secrets must never enter the image
+.env
+.env.*
+!.env.example
+
+# Docs and local study material
+*.md
+*.MD
+*.pdf
+contracts.json
+contracts.txt
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose*.yml
+compose.yaml
+Caddyfile

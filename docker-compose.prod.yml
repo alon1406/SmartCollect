@@ -1,0 +1,62 @@
+# =============================================================================
+# Production stack for a single VPS: database, application, reverse proxy.
+#
+# compose.yaml (the development file) is deliberately left alone - it only
+# starts PostgreSQL, because in development Spring Boot runs on the host.
+#
+# Usage:
+#   cp .env.example .env      # then fill in DB_PASSWORD and DOMAIN
+#   docker compose -f docker-compose.prod.yml up -d --build
+# =============================================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: smartcollect
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Not published to the host: only the app container reaches the database,
+    # over the internal compose network. Port 5432 stays closed to the internet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d smartcollect"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,initDemoes
+      JDBC_URL: jdbc:postgresql://postgres:5432/smartcollect
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Also not published. Caddy is the only way in.
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # holds the issued TLS certificates
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

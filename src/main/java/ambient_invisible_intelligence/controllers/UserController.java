@@ -39,11 +39,21 @@ public class UserController {
 		UserIdBoundary userId = new UserIdBoundary();
 		userId.setEmail(user.getEmail());
 		boundary.setUserId(userId);
-		boundary.setRole(user.getRole());
+		boundary.setRole(downgradeAdminRole(user.getRole()));
 		boundary.setUsername(user.getUsername());
 		boundary.setAvatar(user.getAvatar());
 
 		return this.userService.createUser(boundary, user.getPassword());
+	}
+
+	/**
+	 * Registration is open to anyone, so the requested role cannot be trusted:
+	 * without this, a caller could self-register as ADMIN and then reach the
+	 * /admin endpoints. ADMIN accounts are created by the seeder, which calls
+	 * UsersService directly and therefore bypasses this controller.
+	 */
+	private String downgradeAdminRole(String requestedRole) {
+		return "ADMIN".equals(requestedRole) ? "END_USER" : requestedRole;
 	}
 
 	@GetMapping(

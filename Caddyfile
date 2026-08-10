@@ -1,0 +1,33 @@
+# =============================================================================
+# Caddy terminates TLS and proxies to the application container.
+#
+# The certificate is obtained from Let's Encrypt automatically on first start
+# and renewed on its own - there is nothing to configure and nothing to renew
+# by hand. It only works once the domain's A record points at this server.
+# =============================================================================
+
+{$DOMAIN} {
+
+	# -------------------------------------------------------------------------
+	# Block the bulk-delete admin endpoints.
+	#
+	# This is a public demo, and any authenticated ADMIN can wipe every object,
+	# user and command through these routes. Blocking them at the proxy keeps
+	# the application code untouched, and the demo seeder is unaffected because
+	# it runs in-process at startup rather than over HTTP.
+	# -------------------------------------------------------------------------
+	@admin_bulk_delete {
+		method DELETE
+		path /ambient-invisible-intelligence/admin/*
+	}
+	respond @admin_bulk_delete "This endpoint is disabled in the public demo." 403
+
+	reverse_proxy app:8084
+
+	encode gzip
+
+	log {
+		output stdout
+		format console
+	}
+}

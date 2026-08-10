@@ -571,19 +571,34 @@ Managed via `compose.yaml` and `spring-boot-docker-compose` - Spring Boot auto-c
 
 ## Deployment
 
-The repository ships everything needed to run the whole stack on a single Linux
-host. `compose.yaml` stays as the development file (PostgreSQL only, with the
-application running on the host); `docker-compose.prod.yml` runs all three
-services in containers.
+Java 25 is ahead of most platform buildpacks, so the application ships as a
+container. The same `Dockerfile` serves both supported paths.
 
 | File | Role |
 |---|---|
-| `Dockerfile` | Multi-stage build — `eclipse-temurin:25-jdk` builds the jar, `25-jre` runs it as a non-root user |
-| `docker-compose.prod.yml` | PostgreSQL + application + Caddy |
-| `Caddyfile` | TLS termination and reverse proxy |
-| `src/main/resources/application-prod.properties` | Production overrides, activated by `SPRING_PROFILES_ACTIVE=prod` |
+| `Dockerfile` | Multi-stage — `eclipse-temurin:25-jdk` builds the jar, `25-jre` runs it as a non-root user |
+| `docker-entrypoint.sh` | Translates a libpq `DATABASE_URL` into a JDBC URL, then starts the JVM |
+| `heroku.yml` | Container deploy manifest |
+| `docker-compose.prod.yml` | Self-hosted stack: PostgreSQL + application + Caddy |
+| `Caddyfile` | TLS termination and reverse proxy, self-hosted path only |
+| `application-prod.properties` | Production overrides, activated by `SPRING_PROFILES_ACTIVE=prod` |
 
-### Deploy
+### Option A — Heroku (container stack)
+
+```bash
+heroku create <app-name> --stack container
+heroku addons:create heroku-postgresql:essential-0 --app <app-name>
+heroku config:set SPRING_PROFILES_ACTIVE=prod,initDemoes --app <app-name>
+git push heroku main
+```
+
+TLS and routing are handled by the platform, and `$PORT` is injected at runtime.
+The Postgres add-on publishes `DATABASE_URL` in libpq form
+(`postgres://user:pass@host/db`), which Spring cannot consume directly — the
+entrypoint converts it to a JDBC URL on startup and percent-decodes the
+credentials, so nothing breaks when Heroku rotates them.
+
+### Option B — Any Linux host with Docker
 
 ```bash
 git clone https://github.com/alon1406/SmartCollect.git && cd SmartCollect
@@ -607,14 +622,18 @@ the reset:
 0 4 * * *  cd /opt/smartcollect && docker compose -f docker-compose.prod.yml restart app
 ```
 
-**Two things are locked down for a public deployment**, both listed under
-[Known limitations](#known-limitations):
+**Two things are locked down for a public deployment:**
 
 - `POST /users` silently downgrades a requested `ADMIN` role to `END_USER`, so
   nobody can self-register into the admin endpoints. Seeded admin accounts are
   unaffected — the seeder calls the service layer directly.
-- Caddy returns `403` for `DELETE /ambient-invisible-intelligence/admin/*`, so
-  the bulk-delete routes cannot be reached from outside.
+- The three bulk-delete routes are disabled by
+  `smartcollect.admin.bulk-delete-enabled=false` in the prod profile. This is
+  enforced in `AdminController` rather than at the proxy, so it holds on both
+  deployment paths. A user can still promote itself to `ADMIN` through
+  `PUT /users` — the operator dashboard depends on that, see
+  [Known limitations](#known-limitations) — but there is no longer anything
+  destructive behind the role.
 
 ---
 

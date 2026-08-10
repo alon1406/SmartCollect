@@ -25,9 +25,11 @@ out/
 contracts.json
 contracts.txt
 
-# Docker files themselves
+# Docker files themselves. docker-entrypoint.sh is deliberately NOT ignored -
+# the runtime stage copies it into the image.
 Dockerfile
 .dockerignore
 docker-compose*.yml
 compose.yaml
 Caddyfile
+heroku.yml

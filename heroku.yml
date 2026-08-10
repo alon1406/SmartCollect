@@ -1,0 +1,18 @@
+# Heroku container deploy.
+#
+# The platform buildpacks do not track Java 25 yet, so the app ships as a
+# container built from the repository Dockerfile - the same image the
+# docker-compose stack uses.
+#
+# Setup (once):
+#   heroku create <app-name> --stack container
+#   heroku addons:create heroku-postgresql:essential-0 --app <app-name>
+#   heroku config:set SPRING_PROFILES_ACTIVE=prod,initDemoes --app <app-name>
+#   git push heroku main
+#
+# DATABASE_URL is provided by the Postgres add-on and translated into a JDBC
+# URL by docker-entrypoint.sh at startup.
+
+build:
+  docker:
+    web: Dockerfile

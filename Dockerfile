@@ -33,12 +33,14 @@ WORKDIR /app
 RUN useradd --system --uid 1001 --create-home spring
 
 COPY --from=build /app/build/libs/*.jar app.jar
-RUN chown spring:spring app.jar
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chown spring:spring app.jar && chmod +x /app/docker-entrypoint.sh
 
 USER spring
 
 EXPOSE 8084
 
-# The JVM defaults to a fraction of host memory, which is wrong inside a
-# container. MaxRAMPercentage makes the heap follow the container limit.
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
+# The entrypoint translates Heroku's DATABASE_URL into a JDBC URL when present,
+# then starts the JVM. MaxRAMPercentage is set there: the JVM otherwise sizes
+# the heap from host memory, which is the wrong number inside a container.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

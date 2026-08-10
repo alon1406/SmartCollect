@@ -1,0 +1,8 @@
+# The shell entrypoint and the Dockerfile run inside a Linux container. If git
+# checks them out with CRLF endings on Windows the container fails to start
+# with a confusing "no such file or directory", so pin them to LF.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+docker-entrypoint.sh text eol=lf
+gradlew         text eol=lf
+Caddyfile       text eol=lf

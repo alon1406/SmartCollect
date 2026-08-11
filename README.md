@@ -34,8 +34,48 @@ The three roles map onto the real workflow:
 
 ---
 
+## Screenshots
+
+### Operator — live operations map
+
+Every bin in the system on one map, coloured by fill level, with the side panel
+switching between bins, trucks, alerts and routes.
+
+![Operator dashboard showing the live operations map with 70 bins across Tel Aviv](docs/screenshots/operator-map.png)
+
+### Driver — an assigned route
+
+The driver's view of a route: the real driving path from OSRM, the ordered bin
+list, and the sequential lock — a bin cannot be actioned until the one before it
+is done.
+
+![Driver view of a route, 3 of 8 bins collected, with later bins locked](docs/screenshots/driver-route.png)
+
+### Admin — command audit log
+
+Every command ever invoked, with its target, who invoked it, and the attributes
+it carried. This is the Command pattern surfacing as a product feature: the
+driver states an intent, the server derives the consequences, and the intent is
+kept permanently.
+
+![Audit log listing BinCollected and BinErrorReported commands with their attributes](docs/screenshots/admin-audit-log.png)
+
+### Admin — overview
+
+![Admin dashboard with user and command breakdowns and a 14-day activity chart](docs/screenshots/admin-overview.png)
+
+### Generated API documentation
+
+OpenAPI is generated from the controllers. Superseded endpoints appear struck
+through — they are still mapped, and answer `410 Gone` with an upgrade message.
+
+![Swagger UI listing the user and object controller endpoints](docs/screenshots/swagger-api.png)
+
+---
+
 ## Table of contents
 
+- [Screenshots](#screenshots)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Data Model](#data-model)

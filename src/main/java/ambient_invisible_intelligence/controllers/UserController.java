@@ -1,5 +1,6 @@
 package ambient_invisible_intelligence.controllers;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,9 +24,13 @@ import ambient_invisible_intelligence.logic.UsersService;
 public class UserController {
 
 	private UsersService userService;
+	private boolean allowAdminRegistration;
 
-	public UserController(UsersService userService) {
+	public UserController(
+			UsersService userService,
+			@Value("${smartcollect.users.allow-admin-registration:true}") boolean allowAdminRegistration) {
 		this.userService = userService;
+		this.allowAdminRegistration = allowAdminRegistration;
 	}
 
 	@PostMapping(
@@ -47,12 +52,23 @@ public class UserController {
 	}
 
 	/**
-	 * Registration is open to anyone, so the requested role cannot be trusted:
-	 * without this, a caller could self-register as ADMIN and then reach the
-	 * /admin endpoints. ADMIN accounts are created by the seeder, which calls
-	 * UsersService directly and therefore bypasses this controller.
+	 * Registration is unauthenticated, so on a public deployment the requested
+	 * role cannot be trusted: without this, anyone could self-register as ADMIN
+	 * and reach the /admin endpoints.
+	 *
+	 * It is a toggle rather than an unconditional rule because the API is also
+	 * the only way to create an administrator - the integration tests bootstrap
+	 * their ADMIN through POST /users, and closing that off unconditionally
+	 * leaves them unable to clean up between tests. Left open by default,
+	 * switched off in application-prod.properties.
+	 *
+	 * The demo seeder is unaffected either way: it calls UsersService directly
+	 * and never passes through this controller.
 	 */
 	private String downgradeAdminRole(String requestedRole) {
+		if (this.allowAdminRegistration) {
+			return requestedRole;
+		}
 		return "ADMIN".equals(requestedRole) ? "END_USER" : requestedRole;
 	}
 

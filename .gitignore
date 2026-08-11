@@ -43,6 +43,9 @@ src/main/java/ambient_invisible_intelligence/logic/DataInitializer.java
 /SmartCollect_Full_System_Flow.svg
 /SmartCollect_Presentation.html
 
-# Architecture study guide (personal learning material, not part of the project)
+# Personal study material, not part of the project.
+# (docs/screenshots IS tracked - it is referenced from the README.)
 /ARCHITECTURE-GUIDE-HE.md
 /ARCHITECTURE-GUIDE-HE.pdf
+/SmartCollect-Summary-HE.md
+/SmartCollect-Summary-HE.pdf
